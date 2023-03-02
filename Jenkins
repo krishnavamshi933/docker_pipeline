@@ -1,0 +1,50 @@
+pipeline {
+  agent any
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: 'https://github.com/your-repo.git'
+      }
+    }
+    stage('Build') {
+      steps {
+        sh 'mvn clean install'
+      }
+    }
+    stage('Docker Build') {
+      steps {
+        script {
+          def imageName = 'your-image-name'
+          def imageTag = 'latest'
+          docker.build("${imageName}:${imageTag}", "-f Dockerfile .")
+        }
+      }
+    }
+    stage('Deploy to Registry') {
+      steps {
+        script {
+          def imageName = 'your-image-name'
+          def imageTag = 'latest'
+          docker.withServer('your-docker-registry') {
+            docker.image("${imageName}:${imageTag}").push()
+            docker.image("${imageName}:${imageTag}").pull()
+          }
+        }
+      }
+    }
+    stage('Deploy to Tomcat') {
+      steps {
+        script {
+          def containerName = 'your-container-name'
+          def tomcatHost = 'your-tomcat-host'
+          def tomcatPort = 'your-tomcat-port'
+          def imageName = 'your-image-name'
+          def imageTag = 'latest'
+          docker.run("-d -p ${tomcatPort}:8080 --name ${containerName} ${imageName}:${imageTag}")
+          sh "sleep 30" // Wait for Tomcat to start up
+          sh "curl --retry 10 --retry-delay 5 http://${tomcatHost}:${tomcatPort}/manager/text/deploy?path=/&war=file:/usr/local/tomcat/webapps/your-app.war&update=true -u tomcat:tomcat"
+        }
+      }
+    }
+  }
+}
